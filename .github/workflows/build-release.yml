@@ -7,8 +7,47 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Build the frontend once on Ubuntu and publish ui/dist as an artifact
+  frontend:
+    name: Frontend (Ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "latest"
+
+      - name: Cache Bun deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ui/node_modules
+            ~/.bun/install/cache
+          key: ubuntu-bun-${{ hashFiles('ui/bun.lockb') }}
+          restore-keys: |
+            ubuntu-bun-
+
+      - name: Install & build frontend
+        working-directory: ui
+        shell: bash
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
+      - name: Upload ui/dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: ui/dist
+          if-no-files-found: error
+
+  # Matrix compile with Nuitka; download ui/dist artifact instead of rebuilding
   build:
     name: Build (${{ matrix.os }} / ${{ matrix.arch }})
+    needs: frontend
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -28,7 +67,7 @@ jobs:
             runner: windows-latest
           - os: windows
             arch: arm64
-            runner: windows-11-arm
+            runner: windows-11-arm   # preview
 
           # macOS
           - os: macos
@@ -51,30 +90,12 @@ jobs:
           python-version: "3.12"
           cache: "pip"
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+      # Get prebuilt frontend into ui/dist
+      - name: Download frontend dist
+        uses: actions/download-artifact@v4
         with:
-          bun-version: "latest"
-
-      - name: Cache Bun deps
-        uses: actions/cache@v4
-        with:
-          path: |
-            ui/node_modules
-            ~/.bun/install/cache
-          key: ${{ runner.os }}-${{ matrix.arch }}-bun-${{ hashFiles('ui/bun.lockb') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.arch }}-bun-
-
-      - name: Install frontend deps
-        working-directory: ui
-        shell: bash
-        run: bun install --frozen-lockfile
-
-      - name: Build frontend
-        working-directory: ui
-        shell: bash
-        run: bun run build
+          name: frontend-dist
+          path: ui/dist
 
       # Linux GUI system deps for PyGObject/pycairo/WebKitGTK
       - name: System deps (Linux GUI)
@@ -87,8 +108,7 @@ jobs:
             libcairo2-dev libgirepository1.0-dev \
             libgtk-3-dev libwebkit2gtk-4.1-dev
 
-      # Python deps (tip: make uvloop conditional in requirements.txt)
-      # uvloop==0.21.0; sys_platform != "win32"
+      # Python deps (make uvloop conditional in requirements.txt: uvloop==0.21.0; sys_platform != "win32")
       - name: Install Python deps (Linux/macOS)
         if: matrix.os != 'windows'
         shell: bash
@@ -123,9 +143,10 @@ jobs:
 
       # =========================
       # Build with Nuitka-Action
+      # Defaults: mode=app, output-dir=build
       # =========================
 
-      # Linux (default mode = app → onefile; output goes to build/)
+      # Linux
       - name: Build (Nuitka Linux)
         if: matrix.os == 'linux'
         uses: Nuitka/Nuitka-Action@v1.1
@@ -141,7 +162,7 @@ jobs:
           linux-icon: assets/icon.png
           output-file: nabzram
 
-      # Windows x64 (default mode = app → onefile)
+      # Windows x64
       - name: Build (Nuitka Windows x64)
         if: matrix.os == 'windows' && matrix.arch == 'x86_64'
         uses: Nuitka/Nuitka-Action@v1.1
@@ -158,7 +179,7 @@ jobs:
           windows-icon-from-ico: assets/icon.ico
           output-file: nabzram
 
-      # Windows ARM64 (same defaults; keep unless you hit onefile issues)
+      # Windows ARM64
       - name: Build (Nuitka Windows ARM64)
         if: matrix.os == 'windows' && matrix.arch == 'arm64'
         uses: Nuitka/Nuitka-Action@v1.1
@@ -175,7 +196,7 @@ jobs:
           windows-icon-from-ico: assets/icon.ico
           output-file: nabzram
 
-      # macOS (default mode = app → .app bundle; set icon/name)
+      # macOS (icon + app name)
       - name: Build (Nuitka macOS)
         if: matrix.os == 'macos'
         uses: Nuitka/Nuitka-Action@v1.1
@@ -192,7 +213,6 @@ jobs:
           output-file: nabzram
 
       # Post-build packaging / artifacts
-
       - name: Zip macOS .app (if produced)
         if: matrix.os == 'macos'
         shell: bash

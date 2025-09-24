@@ -1,11 +1,5 @@
-import os
-
-if not os.path.exists("data"):
-    os.makedirs("data")
-
-from gui import create_main_window, start_gui  # noqa
-from server import settings, start_server_thread  # noqa
-
+from gui import create_main_window, start_gui
+from server import settings, start_server_thread
 
 if __name__ == "__main__":
     # Start backend
