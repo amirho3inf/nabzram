@@ -20,7 +20,7 @@ jobs:
             runner: ubuntu-latest
           - os: linux
             arch: arm64
-            runner: ubuntu-24.04-arm   # or ubuntu-22.04-arm
+            runner: ubuntu-24.04-arm
 
           # Windows
           - os: windows
@@ -28,15 +28,15 @@ jobs:
             runner: windows-latest
           - os: windows
             arch: arm64
-            runner: windows-11-arm     # public preview
+            runner: windows-11-arm   # preview; we zip standalone
 
           # macOS
           - os: macos
             arch: arm64
-            runner: macos-latest       # Apple Silicon
+            runner: macos-latest
           - os: macos
             arch: x86_64
-            runner: macos-13           # Intel (being retired soon)
+            runner: macos-13
 
     env:
       OUTPUT_DIR: dist
@@ -76,7 +76,7 @@ jobs:
         shell: bash
         run: bun run build
 
-      # ----- System deps for Linux (GTK/WebKit/PyGObject/pycairo) -----
+      # Linux GUI system deps for PyGObject/pycairo/WebKitGTK
       - name: System deps (Linux GUI)
         if: matrix.os == 'linux'
         shell: bash
@@ -87,13 +87,13 @@ jobs:
             libcairo2-dev libgirepository1.0-dev \
             libgtk-3-dev libwebkit2gtk-4.1-dev
 
-      # ----- Python deps (no existence checks) -----
+      # Python deps (ensure uvloop is conditional in requirements.txt)
+      # e.g.: uvloop==0.21.0; sys_platform != "win32"
       - name: Install Python deps (Linux/macOS)
         if: matrix.os != 'windows'
         shell: bash
         run: |
           python -m pip install --upgrade pip
-          # TIP: ensure requirements.txt has: uvloop==0.21.0; sys_platform != "win32"
           pip install -r requirements.txt
 
       - name: Install Python deps (Windows)
@@ -103,7 +103,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # ----- Optional: UPX for smaller binaries -----
+      # Optional: UPX for smaller binaries
       - name: Install UPX (Linux)
         if: matrix.os == 'linux'
         shell: bash
@@ -121,8 +121,9 @@ jobs:
         shell: bash
         run: brew install upx || true
 
-      # ----- Build with Nuitka-Action (no "mode", use standalone/onefile) -----
-      # Linux
+      # ==== Build with Nuitka-Action ====
+
+      # Linux (onefile)
       - name: Build (Nuitka Linux)
         if: matrix.os == 'linux'
         uses: Nuitka/Nuitka-Action@v1.1
@@ -159,14 +160,13 @@ jobs:
           output-dir: dist
           output-filename: nabzram
 
-      # Windows ARM64 (fallback to standalone folder; zip it)
+      # Windows ARM64 (standalone folder → zip)
       - name: Build (Nuitka Windows ARM64 - standalone)
         if: matrix.os == 'windows' && matrix.arch == 'arm64'
         uses: Nuitka/Nuitka-Action@v1.1
         with:
           script-name: main.py
           standalone: true
-          # (omit onefile on ARM64 for stability)
           follow-imports: true
           include-data-dir: |
             ui/dist=ui/dist
@@ -178,15 +178,13 @@ jobs:
           output-dir: dist
           output-filename: nabzram
 
-      # macOS (no macos-bundle-* options as requested)
+      # macOS (REQUIRES mode: app; plugin stays explicitly enabled)
       - name: Build (Nuitka macOS)
         if: matrix.os == 'macos'
         uses: Nuitka/Nuitka-Action@v1.1
         with:
           script-name: main.py
-          standalone: true
-          onefile: true
-          follow-imports: true
+          mode: app
           include-data-dir: |
             ui/dist=ui/dist
           enable-plugins: |
@@ -194,7 +192,8 @@ jobs:
           output-dir: dist
           output-filename: nabzram
 
-      # ----- Post-build packaging per OS/arch -----
+      # ==== Post-build packaging / artifacts ====
+
       - name: Zip macOS .app (if produced)
         if: matrix.os == 'macos'
         shell: bash
@@ -211,7 +210,6 @@ jobs:
           cd "$OUTPUT_DIR"
           7z a -tzip "nabzram-windows-${{ matrix.arch }}.zip" "nabzram.dist" > /dev/null
 
-      # ----- Upload artifacts -----
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
