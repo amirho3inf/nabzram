@@ -9,7 +9,7 @@ on:
 jobs:
   # Build the frontend once on Ubuntu and publish ui/dist as an artifact
   frontend:
-    name: Frontend (Ubuntu)
+    name: Frontend
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -61,13 +61,10 @@ jobs:
             arch: arm64
             runner: ubuntu-24.04-arm
 
-          # Windows
+          # Windows (x64 only)
           - os: windows
             arch: x86_64
             runner: windows-latest
-          - os: windows
-            arch: arm64
-            runner: windows-11-arm   # preview
 
           # macOS
           - os: macos
@@ -179,23 +176,6 @@ jobs:
           windows-icon-from-ico: assets/icon.ico
           output-file: nabzram
 
-      # Windows ARM64
-      - name: Build (Nuitka Windows ARM64)
-        if: matrix.os == 'windows' && matrix.arch == 'arm64'
-        uses: Nuitka/Nuitka-Action@v1.1
-        with:
-          script-name: main.py
-          include-data-dir: |
-            ui/dist=ui/dist
-          include-data-files: |
-            assets/icon.png=assets/icon.png
-          enable-plugins: |
-            pywebview
-            upx
-          windows-console-mode: disable
-          windows-icon-from-ico: assets/icon.ico
-          output-file: nabzram
-
       # macOS (icon + app name)
       - name: Build (Nuitka macOS)
         if: matrix.os == 'macos'
@@ -239,30 +219,21 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
-      - name: Download artifacts
+      # Download only build artifacts, not the frontend
+      - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
+          pattern: nabzram-*
           path: artifacts
-
-      - name: Collect files
-        id: aset
-        shell: bash
-        run: |
-          shopt -s globstar nullglob
-          files=(
-            artifacts/**/build/nabzram
-            artifacts/**/build/nabzram.exe
-            artifacts/**/build/nabzram-macos-*.zip
-          )
-          printf '%s\n' "${files[@]}" | tee files.txt
-          echo "files<<EOF" >> $GITHUB_OUTPUT
-          cat files.txt >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          merge-multiple: true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.aset.outputs.files }}
+          files: |
+            artifacts/build/nabzram
+            artifacts/build/nabzram.exe
+            artifacts/build/nabzram-macos-*.zip
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
