@@ -3,15 +3,57 @@ TinyDB database manager for persistent storage
 """
 
 import os
+import shutil
+import subprocess
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from platformdirs import user_data_dir
 from tinydb import Query, TinyDB
 from tinydb.middlewares import CachingMiddleware
 from tinydb.storages import JSONStorage
 
 from app.models.database import ServerModel, SettingsModel, SubscriptionModel
+
+
+def check_xray_command_available() -> tuple[bool, str | None]:
+    """
+    Check if the 'xray' command is available on the system.
+    Works on Linux, Windows, and macOS.
+
+    Returns:
+        tuple: (is_available, full_path) where is_available is bool and full_path is str or None
+    """
+    try:
+        # Use shutil.which to find the xray command in PATH
+        xray_path = shutil.which("xray")
+        if xray_path:
+            # Try to run xray --version to verify it's actually xray-core
+            result = subprocess.run(
+                ["xray", "--version"], capture_output=True, text=True, timeout=5
+            )
+            # Check if the output contains xray-core information
+            is_xray_core = (
+                "xray-core" in result.stdout.lower() or "xray" in result.stdout.lower()
+            )
+            return is_xray_core, xray_path if is_xray_core else None
+        return False, None
+    except (
+        subprocess.TimeoutExpired,
+        subprocess.CalledProcessError,
+        FileNotFoundError,
+    ):
+        return False, None
+
+
+def get_xray_data_directory() -> Path:
+    """
+    Get the appropriate directory for storing xray binary and assets.
+    Uses platformdirs to get the correct user data directory for each platform.
+    """
+    return Path(user_data_dir("nabzram", "nabzram")) / "xray"
 
 
 class DatabaseManager:
@@ -37,9 +79,24 @@ class DatabaseManager:
     def _init_settings(self):
         """Initialize default settings if they don't exist"""
         if not self.settings_table.all():
+            # Check if xray command is available on the system
+            is_available, xray_path = check_xray_command_available()
+            if is_available and xray_path:
+                # Use system xray command with full path
+                xray_binary = xray_path
+                xray_assets_folder = None
+            else:
+                # Create directory for xray binary and assets
+                xray_data_dir = get_xray_data_directory()
+                xray_data_dir.mkdir(parents=True, exist_ok=True)
+
+                # Set paths for downloaded xray binary and assets
+                xray_binary = str(xray_data_dir / "xray")
+                xray_assets_folder = str(xray_data_dir)
+
             default_settings = SettingsModel(
-                xray_binary="xray",  # Default xray binary name
-                xray_assets_folder=None,  # No default assets folder
+                xray_binary=xray_binary,
+                xray_assets_folder=xray_assets_folder,
                 xray_log_level="warning",  # Default log level
             )
             self.settings_table.insert(default_settings.model_dump())
