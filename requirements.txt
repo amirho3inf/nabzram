@@ -57,4 +57,3 @@ PyQt6_sip==13.10.2; sys_platform == "linux"
 QtPy==2.4.3; sys_platform == "linux"
 PyGObject==3.50.0; sys_platform == "linux"
 
-cefpython3==66.0; sys_platform == "win32"

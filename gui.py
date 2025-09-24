@@ -169,7 +169,7 @@ def start_gui(window: webview.Window):
     setup_tray(window, window_api)
 
     if platform.system().lower() == "windows":
-        gui = "cef"
+        gui = "edgechromium"
     elif platform.system().lower() == "darwin":
         gui = "cocoa"
     else:
