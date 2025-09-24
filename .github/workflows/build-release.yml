@@ -9,7 +9,7 @@ on:
 jobs:
   # Build the frontend once on Ubuntu and publish ui/dist as an artifact
   frontend:
-    name: Frontend
+    name: Build (UI)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
