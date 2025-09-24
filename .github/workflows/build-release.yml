@@ -28,7 +28,7 @@ jobs:
             runner: windows-latest
           - os: windows
             arch: arm64
-            runner: windows-11-arm   # preview; we zip standalone
+            runner: windows-11-arm
 
           # macOS
           - os: macos
@@ -39,7 +39,7 @@ jobs:
             runner: macos-13
 
     env:
-      OUTPUT_DIR: dist
+      OUTPUT_DIR: build
 
     steps:
       - name: Checkout
@@ -87,8 +87,8 @@ jobs:
             libcairo2-dev libgirepository1.0-dev \
             libgtk-3-dev libwebkit2gtk-4.1-dev
 
-      # Python deps (ensure uvloop is conditional in requirements.txt)
-      # e.g.: uvloop==0.21.0; sys_platform != "win32"
+      # Python deps (tip: make uvloop conditional in requirements.txt)
+      # uvloop==0.21.0; sys_platform != "win32"
       - name: Install Python deps (Linux/macOS)
         if: matrix.os != 'windows'
         shell: bash
@@ -121,78 +121,77 @@ jobs:
         shell: bash
         run: brew install upx || true
 
-      # ==== Build with Nuitka-Action ====
+      # =========================
+      # Build with Nuitka-Action
+      # =========================
 
-      # Linux (onefile)
+      # Linux (default mode = app → onefile; output goes to build/)
       - name: Build (Nuitka Linux)
         if: matrix.os == 'linux'
         uses: Nuitka/Nuitka-Action@v1.1
         with:
           script-name: main.py
-          standalone: true
-          onefile: true
-          follow-imports: true
           include-data-dir: |
             ui/dist=ui/dist
+          include-data-files: |
+            assets/icon.png=assets/icon.png
           enable-plugins: |
             pywebview
             upx
           linux-icon: assets/icon.png
-          output-dir: dist
-          output-filename: nabzram
+          output-file: nabzram
 
-      # Windows x64 (onefile)
+      # Windows x64 (default mode = app → onefile)
       - name: Build (Nuitka Windows x64)
         if: matrix.os == 'windows' && matrix.arch == 'x86_64'
         uses: Nuitka/Nuitka-Action@v1.1
         with:
           script-name: main.py
-          standalone: true
-          onefile: true
-          follow-imports: true
           include-data-dir: |
             ui/dist=ui/dist
+          include-data-files: |
+            assets/icon.png=assets/icon.png
           enable-plugins: |
             pywebview
             upx
           windows-console-mode: disable
           windows-icon-from-ico: assets/icon.ico
-          output-dir: dist
-          output-filename: nabzram
+          output-file: nabzram
 
-      # Windows ARM64 (standalone folder → zip)
-      - name: Build (Nuitka Windows ARM64 - standalone)
+      # Windows ARM64 (same defaults; keep unless you hit onefile issues)
+      - name: Build (Nuitka Windows ARM64)
         if: matrix.os == 'windows' && matrix.arch == 'arm64'
         uses: Nuitka/Nuitka-Action@v1.1
         with:
           script-name: main.py
-          standalone: true
-          follow-imports: true
           include-data-dir: |
             ui/dist=ui/dist
+          include-data-files: |
+            assets/icon.png=assets/icon.png
           enable-plugins: |
             pywebview
             upx
           windows-console-mode: disable
           windows-icon-from-ico: assets/icon.ico
-          output-dir: dist
-          output-filename: nabzram
+          output-file: nabzram
 
-      # macOS (REQUIRES mode: app; plugin stays explicitly enabled)
+      # macOS (default mode = app → .app bundle; set icon/name)
       - name: Build (Nuitka macOS)
         if: matrix.os == 'macos'
         uses: Nuitka/Nuitka-Action@v1.1
         with:
           script-name: main.py
-          mode: app
           include-data-dir: |
             ui/dist=ui/dist
+          include-data-files: |
+            assets/icon.png=assets/icon.png
           enable-plugins: |
             pywebview
-          output-dir: dist
-          output-filename: nabzram
+          macos-app-icon: assets/icon.icns
+          macos-app-name: Nabzram
+          output-file: nabzram
 
-      # ==== Post-build packaging / artifacts ====
+      # Post-build packaging / artifacts
 
       - name: Zip macOS .app (if produced)
         if: matrix.os == 'macos'
@@ -203,23 +202,15 @@ jobs:
             ditto -c -k --sequesterRsrc --keepParent "nabzram.app" "nabzram-macos-${{ matrix.arch }}.zip"
           fi
 
-      - name: Zip Windows ARM64 standalone folder
-        if: matrix.os == 'windows' && matrix.arch == 'arm64'
-        shell: bash
-        run: |
-          cd "$OUTPUT_DIR"
-          7z a -tzip "nabzram-windows-${{ matrix.arch }}.zip" "nabzram.dist" > /dev/null
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: nabzram-${{ matrix.os }}-${{ matrix.arch }}
           path: |
-            dist/nabzram
-            dist/nabzram.exe
-            dist/nabzram-macos-*.zip
-            dist/nabzram-windows-*.zip
-            dist/nabzram.app
+            build/nabzram
+            build/nabzram.exe
+            build/nabzram-macos-*.zip
+            build/nabzram.app
           if-no-files-found: ignore
 
   release:
@@ -239,10 +230,9 @@ jobs:
         run: |
           shopt -s globstar nullglob
           files=(
-            artifacts/**/dist/nabzram
-            artifacts/**/dist/nabzram.exe
-            artifacts/**/dist/nabzram-macos-*.zip
-            artifacts/**/dist/nabzram-windows-*.zip
+            artifacts/**/build/nabzram
+            artifacts/**/build/nabzram.exe
+            artifacts/**/build/nabzram-macos-*.zip
           )
           printf '%s\n' "${files[@]}" | tee files.txt
           echo "files<<EOF" >> $GITHUB_OUTPUT

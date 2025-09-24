@@ -48,6 +48,8 @@ def build_with_nuitka():
         "--standalone",  # Create standalone executable
         "--onefile",  # Create one file executable
         "--include-data-dir=ui/dist=ui/dist",
+        "--include-data-files=assets/icon.png=assets/icon.png",
+        "--disable-console",
         "--enable-plugin=pywebview",
         "--enable-plugin=upx",
         "--show-progress",
