@@ -221,8 +221,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
     steps:
-      # Download only build artifacts, not the frontend
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -230,13 +231,19 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      - name: List downloaded files (debug)
+        run: ls -R artifacts || true
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            artifacts/build/nabzram
-            artifacts/build/nabzram.exe
-            artifacts/build/nabzram-macos-*.zip
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}   
+          make_latest: true      
           generate_release_notes: true
+          files: |
+            artifacts/**/nabzram
+            artifacts/**/nabzram.exe
+            artifacts/**/nabzram-macos-*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
