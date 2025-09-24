@@ -170,7 +170,7 @@ jobs:
           include-data-dir: |
             ui/dist=ui/dist
           include-data-files: |
-            assets/icon.png=assets/icon.png
+            assets/icon.ico=assets/icon.ico
           enable-plugins: |
             pywebview
             upx
@@ -188,7 +188,7 @@ jobs:
           include-data-dir: |
             ui/dist=ui/dist
           include-data-files: |
-            assets/icon.png=assets/icon.png
+            assets/icon.icns=assets/icon.icns
           enable-plugins: |
             pywebview
           macos-app-icon: assets/icon.icns
@@ -204,31 +204,23 @@ jobs:
           cd "$OUTPUT_DIR"
           shopt -s nullglob
 
-          # Zip the first *.app bundle (preserve bundle structure & resource forks)
-          app_zips=0
-          for app in *.app; do
-            echo "Zipping app bundle: $app"
-            ditto -c -k --sequesterRsrc --keepParent "$app" "nabzram-macos-${{ matrix.arch }}.zip"
-            ls -lh "nabzram-macos-${{ matrix.arch }}.zip"
-            app_zips=1
-            break
-          done
-          if [ "$app_zips" -eq 0 ]; then
+          # pick the first .app produced
+          APP_DIR="$(ls -d *.app 2>/dev/null | head -n1 || true)"
+          if [ -z "$APP_DIR" ]; then
             echo "No *.app bundle found under $PWD"
+            exit 1
           fi
 
-          # Zip the first *.dist folder (if it exists)
-          dist_zips=0
-          for dist in *.dist; do
-            echo "Zipping dist folder: $dist"
-            zip -r9 "nabzram-macos-${{ matrix.arch }}-dist.zip" "$dist" >/dev/null
-            ls -lh "nabzram-macos-${{ matrix.arch }}-dist.zip"
-            dist_zips=1
-            break
-          done
-          if [ "$dist_zips" -eq 0 ]; then
-            echo "No *.dist folder found under $PWD"
+          # normalize to Nabzram.app for a clean archive name
+          if [ "$APP_DIR" != "Nabzram.app" ]; then
+            echo "Renaming $APP_DIR -> Nabzram.app"
+            rm -rf Nabzram.app
+            mv "$APP_DIR" "Nabzram.app"
           fi
+
+          # zip with the app at the root of the archive
+          ditto -c -k --sequesterRsrc --keepParent "Nabzram.app" "nabzram-macos-${{ matrix.arch }}.zip"
+          ls -lh "nabzram-macos-${{ matrix.arch }}.zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -238,7 +230,6 @@ jobs:
             build/nabzram-linux-*
             build/nabzram-windows-*.exe
             build/nabzram-macos-*.zip
-            build/Nabzram.app
           if-no-files-found: ignore
 
   release:
