@@ -140,15 +140,16 @@ jobs:
 
       # =========================
       # Build with Nuitka-Action
-      # Defaults: mode=app, output-dir=build
+      # Defaults: mode=app output-dir=build
       # =========================
 
       # Linux
       - name: Build (Nuitka Linux)
         if: matrix.os == 'linux'
-        uses: Nuitka/Nuitka-Action@v1.1
+        uses: Nuitka/nuitka-action@v1.3
         with:
           script-name: main.py
+          mode: app
           include-data-dir: |
             ui/dist=ui/dist
           include-data-files: |
@@ -162,9 +163,10 @@ jobs:
       # Windows x64
       - name: Build (Nuitka Windows x64)
         if: matrix.os == 'windows' && matrix.arch == 'x86_64'
-        uses: Nuitka/Nuitka-Action@v1.1
+        uses: Nuitka/nuitka-action@v1.3
         with:
           script-name: main.py
+          mode: app
           include-data-dir: |
             ui/dist=ui/dist
           include-data-files: |
@@ -179,9 +181,10 @@ jobs:
       # macOS (icon + app name)
       - name: Build (Nuitka macOS)
         if: matrix.os == 'macos'
-        uses: Nuitka/Nuitka-Action@v1.1
+        uses: Nuitka/nuitka-action@v1.3
         with:
           script-name: main.py
+          mode: app
           include-data-dir: |
             ui/dist=ui/dist
           include-data-files: |
