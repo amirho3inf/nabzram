@@ -1,0 +1,174 @@
+name: Build & Release (Nabzram with Nuitka)
+
+on:
+  push:
+    tags:
+      - "v*"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.12"]
+
+    env:
+      # Keep output paths & names consistent
+      OUTPUT_DIR: dist
+      OUTPUT_FILE_LINUX: nabzram
+      OUTPUT_FILE_WINDOWS: nabzram.exe
+      OUTPUT_FILE_MACOS: Nabzram.app
+      # Common Nuitka args
+      NUITKA_COMMON_OPTS: >
+        --standalone
+        --onefile
+        --follow-imports
+        --include-data-dir=ui/dist=ui/dist
+        --enable-plugin=pywebview
+        --assume-yes-for-downloads
+        --output-dir=dist
+        --output-filename=nabzram
+        --show-progress
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "latest"
+
+      - name: Cache Bun deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ui/node_modules
+            ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('ui/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install frontend deps
+        working-directory: ui
+        run: bun install --frozen-lockfile
+
+      - name: Build frontend
+        working-directory: ui
+        run: bun run build
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      # Optional accel: UPX/ccache per OS (safe to skip if you want)
+      - name: Install UPX & ccache (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y upx ccache || true
+
+      - name: Install UPX (Windows)
+        if: runner.os == 'Windows'
+        run: choco install -y upx
+
+      - name: Install UPX (macOS)
+        if: runner.os == 'macOS'
+        run: brew install upx || true
+
+      # Compute platform-specific Nuitka options
+      - name: Prepare Nuitka options
+        id: opts
+        shell: bash
+        run: |
+          case "${{ runner.os }}" in
+            Linux)
+              EXTRA="--linux-icon=assets/icon.png --enable-plugin=upx"
+              echo "opts=$NUITKA_COMMON_OPTS $EXTRA" >> $GITHUB_OUTPUT
+              echo "outfile=$OUTPUT_FILE_LINUX" >> $GITHUB_OUTPUT
+              ;;
+            Windows)
+              EXTRA="--windows-console-mode=disable --windows-icon-from-ico=assets/icon.ico --enable-plugin=upx"
+              echo "opts=$NUITKA_COMMON_OPTS $EXTRA" >> $GITHUB_OUTPUT
+              echo "outfile=$OUTPUT_FILE_WINDOWS" >> $GITHUB_OUTPUT
+              ;;
+            macOS)
+              EXTRA="--macos-create-app-bundle --macos-bundle-name=Nabzram --macos-bundle-identifier=com.nabzram.app --macos-app-icon=assets/icon.icns"
+              echo "opts=$NUITKA_COMMON_OPTS $EXTRA" >> $GITHUB_OUTPUT
+              echo "outfile=$OUTPUT_FILE_MACOS" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Build with Nuitka-Action
+        uses: Nuitka/Nuitka-Action@v1.1
+        with:
+          script-name: main.py
+          options: ${{ steps.opts.outputs.opts }}
+
+      # Zip macOS .app so it can be attached to a release
+      - name: Zip macOS app
+        if: runner.os == 'macOS'
+        run: |
+          cd "$OUTPUT_DIR"
+          ditto -c -k --sequesterRsrc --keepParent "${{ steps.opts.outputs.outfile }}" "nabzram-macos.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nabzram-${{ runner.os }}
+          path: |
+            dist/nabzram.exe
+            dist/nabzram
+            dist/nabzram.app
+            dist/nabzram-macos.zip
+          if-no-files-found: ignore
+
+  release:
+    name: Release assets
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare asset list
+        id: aset
+        shell: bash
+        run: |
+          ls -R artifacts
+          # Pick the most portable files per OS
+          linux="artifacts/nabzram-Linux/dist/nabzram"
+          win="artifacts/nabzram-Windows/dist/nabzram.exe"
+          maczip="artifacts/nabzram-macOS/dist/nabzram-macos.zip"
+          # Build an output list of existing files
+          files=()
+          [ -f "$linux" ] && files+=("$linux")
+          [ -f "$win" ] && files+=("$win")
+          [ -f "$maczip" ] && files+=("$maczip")
+          printf '%s\n' "${files[@]}" > files.txt
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          cat files.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.aset.outputs.files }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
