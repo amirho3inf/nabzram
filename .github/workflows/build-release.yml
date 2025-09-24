@@ -1,48 +1,54 @@
-name: Build & Release (Nabzram with Nuitka)
+name: Build & Release (Nabzram)
 
 on:
   push:
-    tags:
-      - "v*"
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    name: Build (${{ matrix.os }} / ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.12"]
+        include:
+          # Linux
+          - os: linux
+            arch: x86_64
+            runner: ubuntu-latest
+          - os: linux
+            arch: arm64
+            runner: ubuntu-24.04-arm   # or ubuntu-22.04-arm
+
+          # Windows
+          - os: windows
+            arch: x86_64
+            runner: windows-latest
+          - os: windows
+            arch: arm64
+            runner: windows-11-arm     # public preview
+
+          # macOS
+          - os: macos
+            arch: arm64
+            runner: macos-latest       # Apple Silicon
+          - os: macos
+            arch: x86_64
+            runner: macos-13           # Intel (being retired soon)
 
     env:
-      # Keep output paths & names consistent
       OUTPUT_DIR: dist
-      OUTPUT_FILE_LINUX: nabzram
-      OUTPUT_FILE_WINDOWS: nabzram.exe
-      OUTPUT_FILE_MACOS: Nabzram.app
-      # Common Nuitka args
-      NUITKA_COMMON_OPTS: >
-        --standalone
-        --onefile
-        --follow-imports
-        --include-data-dir=ui/dist=ui/dist
-        --enable-plugin=pywebview
-        --assume-yes-for-downloads
-        --output-dir=dist
-        --output-filename=nabzram
-        --show-progress
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
           cache: "pip"
 
       - name: Install Bun
@@ -56,83 +62,171 @@ jobs:
           path: |
             ui/node_modules
             ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('ui/bun.lockb') }}
+          key: ${{ runner.os }}-${{ matrix.arch }}-bun-${{ hashFiles('ui/bun.lockb') }}
           restore-keys: |
-            ${{ runner.os }}-bun-
+            ${{ runner.os }}-${{ matrix.arch }}-bun-
 
       - name: Install frontend deps
         working-directory: ui
+        shell: bash
         run: bun install --frozen-lockfile
 
       - name: Build frontend
         working-directory: ui
+        shell: bash
         run: bun run build
 
-      - name: Install Python deps
+      # ----- System deps for Linux (GTK/WebKit/pycairo/PyGObject) -----
+      - name: System deps (Linux GUI)
+        if: matrix.os == 'linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config build-essential python3-dev \
+            libcairo2-dev libgirepository1.0-dev \
+            libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      # ----- Python deps per OS (correct shells) -----
+      - name: Install Python deps (Linux/macOS)
+        if: matrix.os != 'windows'
+        shell: bash
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      # Optional accel: UPX/ccache per OS (safe to skip if you want)
-      - name: Install UPX & ccache (Linux)
-        if: runner.os == 'Linux'
+      - name: Install Python deps (Windows)
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          if (Test-Path requirements.txt) {
+            pip install -r requirements.txt
+          }
+
+      # ----- Optional: UPX for smaller binaries -----
+      - name: Install UPX (Linux)
+        if: matrix.os == 'linux'
+        shell: bash
         run: |
           sudo apt-get update
           sudo apt-get install -y upx ccache || true
 
       - name: Install UPX (Windows)
-        if: runner.os == 'Windows'
-        run: choco install -y upx
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: choco install -y upx || ver > NUL
 
       - name: Install UPX (macOS)
-        if: runner.os == 'macOS'
+        if: matrix.os == 'macos'
+        shell: bash
         run: brew install upx || true
 
-      # Compute platform-specific Nuitka options
-      - name: Prepare Nuitka options
-        id: opts
-        shell: bash
-        run: |
-          case "${{ runner.os }}" in
-            Linux)
-              EXTRA="--linux-icon=assets/icon.png --enable-plugin=upx"
-              echo "opts=$NUITKA_COMMON_OPTS $EXTRA" >> $GITHUB_OUTPUT
-              echo "outfile=$OUTPUT_FILE_LINUX" >> $GITHUB_OUTPUT
-              ;;
-            Windows)
-              EXTRA="--windows-console-mode=disable --windows-icon-from-ico=assets/icon.ico --enable-plugin=upx"
-              echo "opts=$NUITKA_COMMON_OPTS $EXTRA" >> $GITHUB_OUTPUT
-              echo "outfile=$OUTPUT_FILE_WINDOWS" >> $GITHUB_OUTPUT
-              ;;
-            macOS)
-              EXTRA="--macos-create-app-bundle --macos-bundle-name=Nabzram --macos-bundle-identifier=com.nabzram.app --macos-app-icon=assets/icon.icns"
-              echo "opts=$NUITKA_COMMON_OPTS $EXTRA" >> $GITHUB_OUTPUT
-              echo "outfile=$OUTPUT_FILE_MACOS" >> $GITHUB_OUTPUT
-              ;;
-          esac
-
-      - name: Build with Nuitka-Action
+      # ----- Build with Nuitka-Action (use proper inputs, per-OS) -----
+      # Linux
+      - name: Build (Nuitka Linux)
+        if: matrix.os == 'linux'
         uses: Nuitka/Nuitka-Action@v1.1
         with:
           script-name: main.py
-          options: ${{ steps.opts.outputs.opts }}
+          mode: app
+          onefile: true
+          follow-imports: true
+          include-data-dir: |
+            ui/dist=ui/dist
+          enable-plugins: |
+            pywebview
+            upx
+          linux-icon: assets/icon.png
+          output-dir: dist
+          output-filename: nabzram
 
-      # Zip macOS .app so it can be attached to a release
-      - name: Zip macOS app
-        if: runner.os == 'macOS'
+      # Windows x64 (onefile)
+      - name: Build (Nuitka Windows x64)
+        if: matrix.os == 'windows' && matrix.arch == 'x86_64'
+        uses: Nuitka/Nuitka-Action@v1.1
+        with:
+          script-name: main.py
+          mode: app
+          onefile: true
+          follow-imports: true
+          include-data-dir: |
+            ui/dist=ui/dist
+          enable-plugins: |
+            pywebview
+            upx
+          windows-console-mode: disable
+          windows-icon-from-ico: assets/icon.ico
+          output-dir: dist
+          output-filename: nabzram
+
+      # Windows ARM64 (fallback to standalone, zip the folder)
+      - name: Build (Nuitka Windows ARM64 - standalone)
+        if: matrix.os == 'windows' && matrix.arch == 'arm64'
+        uses: Nuitka/Nuitka-Action@v1.1
+        with:
+          script-name: main.py
+          mode: app
+          # no onefile here (ARM64 onefile can be flaky)
+          follow-imports: true
+          include-data-dir: |
+            ui/dist=ui/dist
+          enable-plugins: |
+            pywebview
+            upx
+          windows-console-mode: disable
+          windows-icon-from-ico: assets/icon.ico
+          output-dir: dist
+          output-filename: nabzram
+
+      # macOS (both arches produce .app bundle; we zip it)
+      - name: Build (Nuitka macOS)
+        if: matrix.os == 'macos'
+        uses: Nuitka/Nuitka-Action@v1.1
+        with:
+          script-name: main.py
+          mode: app
+          onefile: true
+          follow-imports: true
+          include-data-dir: |
+            ui/dist=ui/dist
+          enable-plugins: |
+            pywebview
+          macos-create-app-bundle: true
+          macos-bundle-name: Nabzram
+          macos-bundle-identifier: com.nabzram.app
+          macos-app-icon: assets/icon.icns
+          output-dir: dist
+          output-filename: nabzram
+
+      # ----- Post-build packaging per OS/arch -----
+      - name: Zip macOS .app
+        if: matrix.os == 'macos'
+        shell: bash
         run: |
           cd "$OUTPUT_DIR"
-          ditto -c -k --sequesterRsrc --keepParent "${{ steps.opts.outputs.outfile }}" "nabzram-macos.zip"
+          # Bundle is "nabzram.app"
+          ditto -c -k --sequesterRsrc --keepParent "nabzram.app" "nabzram-macos-${{ matrix.arch }}.zip"
 
+      - name: Zip Windows ARM64 standalone folder
+        if: matrix.os == 'windows' && matrix.arch == 'arm64'
+        shell: bash
+        run: |
+          cd "$OUTPUT_DIR"
+          # Nuitka standalone folder is typically nabzram.dist
+          7z a -tzip "nabzram-windows-${{ matrix.arch }}.zip" "nabzram.dist" > /dev/null
+
+      # ----- Upload artifacts -----
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nabzram-${{ runner.os }}
+          name: nabzram-${{ matrix.os }}-${{ matrix.arch }}
           path: |
-            dist/nabzram.exe
-            dist/nabzram
-            dist/nabzram.app
-            dist/nabzram-macos.zip
+            dist/nabzram              # Linux onefile
+            dist/nabzram.exe          # Windows x64 onefile
+            dist/nabzram-windows-*.zip  # Windows ARM64 standalone zip
+            dist/nabzram-macos-*.zip    # macOS .app zip
+            dist/nabzram.app            # raw .app (in case you want it)
           if-no-files-found: ignore
 
   release:
@@ -146,21 +240,18 @@ jobs:
         with:
           path: artifacts
 
-      - name: Prepare asset list
+      - name: Collect files
         id: aset
         shell: bash
         run: |
-          ls -R artifacts
-          # Pick the most portable files per OS
-          linux="artifacts/nabzram-Linux/dist/nabzram"
-          win="artifacts/nabzram-Windows/dist/nabzram.exe"
-          maczip="artifacts/nabzram-macOS/dist/nabzram-macos.zip"
-          # Build an output list of existing files
-          files=()
-          [ -f "$linux" ] && files+=("$linux")
-          [ -f "$win" ] && files+=("$win")
-          [ -f "$maczip" ] && files+=("$maczip")
-          printf '%s\n' "${files[@]}" > files.txt
+          shopt -s globstar nullglob
+          files=(
+            artifacts/**/dist/nabzram
+            artifacts/**/dist/nabzram.exe
+            artifacts/**/dist/nabzram-macos-*.zip
+            artifacts/**/dist/nabzram-windows-*.zip
+          )
+          printf '%s\n' "${files[@]}" | tee files.txt
           echo "files<<EOF" >> $GITHUB_OUTPUT
           cat files.txt >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
