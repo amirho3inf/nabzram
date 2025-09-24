@@ -173,8 +173,7 @@ def start_gui(window: webview.Window):
     elif platform.system().lower() == "darwin":
         gui = "cocoa"
     else:
-        os.environ["WEBKIT_DISABLE_COMPOSITING_MODE"] = "1"
-        gui = "gtk"
+        gui = "qt"
 
     webview.start(
         lambda w: w.evaluate_js("document.body.style.zoom = '1.0'"),

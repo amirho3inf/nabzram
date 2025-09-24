@@ -59,7 +59,6 @@ include_routers(app)
 
 # Serve frontend
 UI_DIR = get_app_root() / "ui" / "dist"
-print(UI_DIR)
 app.mount("/", StaticFiles(directory=UI_DIR, html=True), name="ui")
 
 

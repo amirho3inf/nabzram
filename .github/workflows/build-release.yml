@@ -193,18 +193,23 @@ jobs:
             pywebview
           macos-app-icon: assets/icon.icns
           macos-app-name: Nabzram
-          output-file: Nabzram
+          output-file: Nabzram.app
 
       # Post-build packaging / artifacts
-      - name: Zip macOS .app (if produced)
+      - name: Zip macOS .app (auto-detect)
         if: matrix.os == 'macos'
         shell: bash
         run: |
-          APP_DIR="$OUTPUT_DIR/Nabzram.app"
-          if [ -d "$APP_DIR" ]; then
-            cd "$OUTPUT_DIR"
-            ditto -c -k --sequesterRsrc --keepParent "$(basename "$APP_DIR")" "nabzram-macos-${{ matrix.arch }}.zip"
+          set -e
+          APP_DIR="$(find "$OUTPUT_DIR" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          if [ -z "$APP_DIR" ]; then
+            echo "No .app found in $OUTPUT_DIR"
+            exit 0
           fi
+          echo "Found app: $APP_DIR"
+          cd "$OUTPUT_DIR"
+          ditto -c -k --sequesterRsrc --keepParent "$(basename "$APP_DIR")" "nabzram-macos-${{ matrix.arch }}.zip"
+          ls -lh "nabzram-macos-${{ matrix.arch }}.zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
