@@ -76,7 +76,7 @@ jobs:
         shell: bash
         run: bun run build
 
-      # ----- System deps for Linux (GTK/WebKit/pycairo/PyGObject) -----
+      # ----- System deps for Linux (GTK/WebKit/PyGObject/pycairo) -----
       - name: System deps (Linux GUI)
         if: matrix.os == 'linux'
         shell: bash
@@ -87,22 +87,21 @@ jobs:
             libcairo2-dev libgirepository1.0-dev \
             libgtk-3-dev libwebkit2gtk-4.1-dev
 
-      # ----- Python deps per OS (correct shells) -----
+      # ----- Python deps (no existence checks) -----
       - name: Install Python deps (Linux/macOS)
         if: matrix.os != 'windows'
         shell: bash
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          # TIP: ensure requirements.txt has: uvloop==0.21.0; sys_platform != "win32"
+          pip install -r requirements.txt
 
       - name: Install Python deps (Windows)
         if: matrix.os == 'windows'
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          if (Test-Path requirements.txt) {
-            pip install -r requirements.txt
-          }
+          pip install -r requirements.txt
 
       # ----- Optional: UPX for smaller binaries -----
       - name: Install UPX (Linux)
@@ -122,14 +121,14 @@ jobs:
         shell: bash
         run: brew install upx || true
 
-      # ----- Build with Nuitka-Action (use proper inputs, per-OS) -----
+      # ----- Build with Nuitka-Action (no "mode", use standalone/onefile) -----
       # Linux
       - name: Build (Nuitka Linux)
         if: matrix.os == 'linux'
         uses: Nuitka/Nuitka-Action@v1.1
         with:
           script-name: main.py
-          mode: app
+          standalone: true
           onefile: true
           follow-imports: true
           include-data-dir: |
@@ -147,7 +146,7 @@ jobs:
         uses: Nuitka/Nuitka-Action@v1.1
         with:
           script-name: main.py
-          mode: app
+          standalone: true
           onefile: true
           follow-imports: true
           include-data-dir: |
@@ -160,14 +159,14 @@ jobs:
           output-dir: dist
           output-filename: nabzram
 
-      # Windows ARM64 (fallback to standalone, zip the folder)
+      # Windows ARM64 (fallback to standalone folder; zip it)
       - name: Build (Nuitka Windows ARM64 - standalone)
         if: matrix.os == 'windows' && matrix.arch == 'arm64'
         uses: Nuitka/Nuitka-Action@v1.1
         with:
           script-name: main.py
-          mode: app
-          # no onefile here (ARM64 onefile can be flaky)
+          standalone: true
+          # (omit onefile on ARM64 for stability)
           follow-imports: true
           include-data-dir: |
             ui/dist=ui/dist
@@ -179,41 +178,37 @@ jobs:
           output-dir: dist
           output-filename: nabzram
 
-      # macOS (both arches produce .app bundle; we zip it)
+      # macOS (no macos-bundle-* options as requested)
       - name: Build (Nuitka macOS)
         if: matrix.os == 'macos'
         uses: Nuitka/Nuitka-Action@v1.1
         with:
           script-name: main.py
-          mode: app
+          standalone: true
           onefile: true
           follow-imports: true
           include-data-dir: |
             ui/dist=ui/dist
           enable-plugins: |
             pywebview
-          macos-create-app-bundle: true
-          macos-bundle-name: Nabzram
-          macos-bundle-identifier: com.nabzram.app
-          macos-app-icon: assets/icon.icns
           output-dir: dist
           output-filename: nabzram
 
       # ----- Post-build packaging per OS/arch -----
-      - name: Zip macOS .app
+      - name: Zip macOS .app (if produced)
         if: matrix.os == 'macos'
         shell: bash
         run: |
-          cd "$OUTPUT_DIR"
-          # Bundle is "nabzram.app"
-          ditto -c -k --sequesterRsrc --keepParent "nabzram.app" "nabzram-macos-${{ matrix.arch }}.zip"
+          if [ -d "$OUTPUT_DIR/nabzram.app" ]; then
+            cd "$OUTPUT_DIR"
+            ditto -c -k --sequesterRsrc --keepParent "nabzram.app" "nabzram-macos-${{ matrix.arch }}.zip"
+          fi
 
       - name: Zip Windows ARM64 standalone folder
         if: matrix.os == 'windows' && matrix.arch == 'arm64'
         shell: bash
         run: |
           cd "$OUTPUT_DIR"
-          # Nuitka standalone folder is typically nabzram.dist
           7z a -tzip "nabzram-windows-${{ matrix.arch }}.zip" "nabzram.dist" > /dev/null
 
       # ----- Upload artifacts -----
@@ -222,11 +217,11 @@ jobs:
         with:
           name: nabzram-${{ matrix.os }}-${{ matrix.arch }}
           path: |
-            dist/nabzram              # Linux onefile
-            dist/nabzram.exe          # Windows x64 onefile
-            dist/nabzram-windows-*.zip  # Windows ARM64 standalone zip
-            dist/nabzram-macos-*.zip    # macOS .app zip
-            dist/nabzram.app            # raw .app (in case you want it)
+            dist/nabzram
+            dist/nabzram.exe
+            dist/nabzram-macos-*.zip
+            dist/nabzram-windows-*.zip
+            dist/nabzram.app
           if-no-files-found: ignore
 
   release:
