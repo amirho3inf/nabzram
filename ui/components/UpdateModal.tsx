@@ -4,6 +4,7 @@ import * as api from '../services/api';
 import { XrayVersionInfo } from '../types';
 import { useToast } from '../contexts/ToastContext';
 import { ArrowDownCircleIcon, CloudDownloadIcon } from './icons';
+import CustomSelect, { SelectOption } from './CustomSelect';
 
 interface UpdateModalProps {
     onClose: () => void;
@@ -68,10 +69,10 @@ const UpdateModal: React.FC<UpdateModalProps> = ({ onClose, onUpdateSuccess }) =
             setIsUpdatingGeodata(false);
         }
     };
-
-    const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        setSelectedVersion(e.target.value);
-        if (e.target.value !== 'custom') {
+    
+    const handleVersionSelect = (value: string) => {
+        setSelectedVersion(value);
+        if (value !== 'custom') {
             setCustomVersion('');
         }
     };
@@ -93,6 +94,12 @@ const UpdateModal: React.FC<UpdateModalProps> = ({ onClose, onUpdateSuccess }) =
         if (!info) {
             return <p className="text-center text-destructive">Could not load version information.</p>;
         }
+        
+        const versionOptions: SelectOption[] = [
+            { value: 'latest', label: `Latest (${info.latest_version})` },
+            ...info.available_versions.map(v => ({ value: v, label: v })),
+            { value: 'custom', label: 'Custom...' }
+        ];
 
         return (
             <div className="space-y-6">
@@ -117,17 +124,12 @@ const UpdateModal: React.FC<UpdateModalProps> = ({ onClose, onUpdateSuccess }) =
 
                     <div>
                         <label htmlFor="version-select" className="block text-sm font-medium text-muted-foreground mb-1">Select Version to Install</label>
-                        <select
-                            id="version-select"
+                        <CustomSelect
                             value={selectedVersion}
-                            onChange={handleSelectChange}
+                            onChange={handleVersionSelect}
                             disabled={isUpdating || isUpdatingGeodata}
-                            className="w-full bg-input border border-border rounded-md p-2 text-foreground focus:ring-2 focus:ring-ring focus:outline-none"
-                        >
-                            <option value="latest">Latest ({info.latest_version})</option>
-                            {info.available_versions.map(v => <option key={v} value={v}>{v}</option>)}
-                            <option value="custom">Custom...</option>
-                        </select>
+                            options={versionOptions}
+                        />
                     </div>
                     
                     {selectedVersion === 'custom' && (

@@ -13,13 +13,23 @@ from utils import get_app_root
 storage_path = str(Path(user_data_dir("nabzram", "nabzram")) / "storage")
 
 
-def _get_icon_path():
-    system = platform.system().lower()
-    if system == "windows":
-        return os.path.abspath(get_app_root() / "assets" / "icon.ico")
-    elif system == "darwin":
-        return os.path.abspath(get_app_root() / "assets" / "icon.icns")
-    return os.path.abspath(get_app_root() / "assets" / "icon.png")
+system = platform.system().lower()
+
+if system == "windows":
+    icon_path = os.path.abspath(get_app_root() / "assets" / "icon.ico")
+    gui = "edgechromium"
+    easy_drag = False
+
+elif system == "darwin":
+    icon_path = os.path.abspath(get_app_root() / "assets" / "icon.icns")
+    gui = "cocoa"
+    easy_drag = False
+
+else:
+    icon_path = os.path.abspath(get_app_root() / "assets" / "icon.png")
+    gui = "gtk"
+    os.environ["WEBKIT_DISABLE_COMPOSITING_MODE"] = "1"
+    easy_drag = True
 
 
 class WindowApi:
@@ -126,7 +136,7 @@ def create_main_window(url: str):
         min_size=(500, 900),
         resizable=True,
         frameless=True,
-        easy_drag=False,
+        easy_drag=easy_drag,
         background_color="#020817",
     )
 
@@ -143,7 +153,7 @@ def setup_tray(window: webview.Window, api: WindowApi):
 
     tray_icon = pystray.Icon(
         "Nabzram",
-        Image.open(_get_icon_path()),
+        Image.open(icon_path),
         menu=pystray.Menu(
             Item("Show Window", toggle, default=True),  # 👈 default = left click
             Item("Quit", on_quit),
@@ -168,18 +178,11 @@ def start_gui(window: webview.Window):
     register_api(window, window_api)
     setup_tray(window, window_api)
 
-    if platform.system().lower() == "windows":
-        gui = "edgechromium"
-    elif platform.system().lower() == "darwin":
-        gui = "cocoa"
-    else:
-        gui = "qt"
-
     webview.start(
         lambda w: w.evaluate_js("document.body.style.zoom = '1.0'"),
         window,
         gui=gui,
-        icon=_get_icon_path(),
+        icon=icon_path,
         storage_path=storage_path,
         private_mode=False,
     )

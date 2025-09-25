@@ -4,11 +4,21 @@ import * as api from '../services/api';
 import { SettingsUpdate } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useToast } from '../contexts/ToastContext';
+import CustomSelect, { SelectOption } from './CustomSelect';
 
 interface SettingsModalProps {
     onClose: () => void;
     onSaveSuccess: () => void;
 }
+
+const logLevelOptions: SelectOption[] = [
+    { value: '', label: 'Default' },
+    { value: 'debug', label: 'Debug' },
+    { value: 'info', label: 'Info' },
+    { value: 'warning', label: 'Warning' },
+    { value: 'error', label: 'Error' },
+    { value: 'none', label: 'None' },
+];
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSaveSuccess }) => {
     const { setTheme, themes, theme: currentThemeName, font, setFont } = useTheme();
@@ -68,7 +78,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSaveSuccess })
         }
     };
     
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         if (name === 'socks_port' || name === 'http_port') {
             setSettings(prev => ({...prev, [name]: value === '' ? undefined : Number(value) }));
@@ -128,20 +138,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSaveSuccess })
                             </div>
                             <div className="mt-4">
                                 <label htmlFor="xray_log_level" className="block text-sm font-medium text-muted-foreground mb-1">Xray Log Level</label>
-                                <select
-                                    id="xray_log_level"
-                                    name="xray_log_level"
+                                <CustomSelect
                                     value={settings.xray_log_level ?? ''}
-                                    onChange={handleChange}
-                                    className="w-full bg-input border border-border rounded-md p-2 text-foreground focus:ring-2 focus:ring-ring focus:outline-none"
-                                >
-                                    <option value="">Default</option>
-                                    <option value="debug">Debug</option>
-                                    <option value="info">Info</option>
-                                    <option value="warning">Warning</option>
-                                    <option value="error">Error</option>
-                                    <option value="none">None</option>
-                                </select>
+                                    onChange={(value) => setSettings(prev => ({ ...prev, xray_log_level: value }))}
+                                    options={logLevelOptions}
+                                />
                             </div>
                         </div>
 
