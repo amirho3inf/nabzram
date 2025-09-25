@@ -85,94 +85,24 @@ async def update_settings(
 ):
     """Update global settings (e.g., change default SOCKS/HTTP ports)"""
     try:
-        # Get current settings
-        current_settings = db.get_settings()
-
-        # Create updated settings
-        updated_settings = SettingsModel(
-            socks_port=settings_update.socks_port
-            if settings_update.socks_port is not None
-            else current_settings.socks_port,
-            http_port=settings_update.http_port
-            if settings_update.http_port is not None
-            else current_settings.http_port,
-            xray_binary=settings_update.xray_binary
-            if settings_update.xray_binary is not None
-            else current_settings.xray_binary,
-            xray_assets_folder=settings_update.xray_assets_folder
-            if settings_update.xray_assets_folder is not None
-            else current_settings.xray_assets_folder,
-            xray_log_level=settings_update.xray_log_level
-            if settings_update.xray_log_level is not None
-            else current_settings.xray_log_level,
-        )
-
-        # Validate port ranges
-        if updated_settings.socks_port is not None:
-            if not (1 <= updated_settings.socks_port <= 65535):
-                raise HTTPException(
-                    status_code=400, detail="SOCKS port must be between 1 and 65535"
-                )
-
-        if updated_settings.http_port is not None:
-            if not (1 <= updated_settings.http_port <= 65535):
-                raise HTTPException(
-                    status_code=400, detail="HTTP port must be between 1 and 65535"
-                )
-
-        # Check for port conflicts
         if (
-            updated_settings.socks_port is not None
-            and updated_settings.http_port is not None
-            and updated_settings.socks_port == updated_settings.http_port
+            settings_update.socks_port is not None
+            and settings_update.http_port is not None
+            and settings_update.socks_port == settings_update.http_port
         ):
             raise HTTPException(
                 status_code=400, detail="SOCKS and HTTP ports cannot be the same"
             )
 
-        # Validate log level
-        if updated_settings.xray_log_level is not None:
-            valid_log_levels = ["debug", "info", "warning", "error", "none"]
-            if updated_settings.xray_log_level not in valid_log_levels:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid log level. Must be one of: {', '.join(valid_log_levels)}",
-                )
+        db.update_settings(SettingsModel.model_validate(settings_update.model_dump()))
 
-        # Save updated settings
-        db.update_settings(updated_settings)
+        await restart_current_server_if_running()
 
-        # Check if xray-related settings were changed (requires server restart)
-        xray_settings_changed = (
-            settings_update.xray_binary is not None
-            or settings_update.xray_assets_folder is not None
-            or settings_update.xray_log_level is not None
-        )
-
-        # Prepare response message
-        changes = []
-        if settings_update.socks_port is not None:
-            changes.append(f"SOCKS port: {settings_update.socks_port}")
-        if settings_update.http_port is not None:
-            changes.append(f"HTTP port: {settings_update.http_port}")
-        if settings_update.xray_binary is not None:
-            changes.append(f"Xray binary: {settings_update.xray_binary}")
-        if settings_update.xray_assets_folder is not None:
-            changes.append(f"Xray assets folder: {settings_update.xray_assets_folder}")
-        if settings_update.xray_log_level is not None:
-            changes.append(f"Xray log level: {settings_update.xray_log_level}")
-
-        message = f"Settings updated successfully: {', '.join(changes)}"
-
-        # Restart server if xray settings changed
-        if xray_settings_changed:
-            restarted = await restart_current_server_if_running()
-            if restarted:
-                message += " and restarted the running server"
+        updated_settings = db.get_settings()
 
         return SettingsUpdateResponse(
             success=True,
-            message=message,
+            message="Settings updated successfully",
             socks_port=updated_settings.socks_port,
             http_port=updated_settings.http_port,
             xray_binary=updated_settings.xray_binary,

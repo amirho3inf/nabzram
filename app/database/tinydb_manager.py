@@ -3,6 +3,7 @@ TinyDB database manager for persistent storage
 """
 
 import os
+import platform
 import shutil
 import subprocess
 from datetime import datetime
@@ -12,8 +13,6 @@ from uuid import UUID
 
 from platformdirs import user_data_dir
 from tinydb import Query, TinyDB
-from tinydb.middlewares import CachingMiddleware
-from tinydb.storages import JSONStorage
 
 from app.models.database import ServerModel, SettingsModel, SubscriptionModel
 
@@ -56,6 +55,15 @@ def get_xray_data_directory() -> Path:
     return Path(user_data_dir("nabzram", "nabzram")) / "xray"
 
 
+def get_default_xray_binary_filename() -> str:
+    """Return platform-specific xray binary filename."""
+    system = platform.system().lower()
+    if system == "windows":
+        return "xray.exe"
+    # macOS (darwin) and Linux use "xray"
+    return "xray"
+
+
 class DatabaseManager:
     """Manages TinyDB operations for subscriptions, servers, and settings"""
 
@@ -66,8 +74,7 @@ class DatabaseManager:
         # Ensure database directory exists
         os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
 
-        # Initialize TinyDB with caching middleware for better performance
-        self.db = TinyDB(db_path, storage=CachingMiddleware(JSONStorage), indent=2)
+        self.db = TinyDB(db_path, indent=2)
 
         # Get tables
         self.subscriptions_table = self.db.table("subscriptions")
@@ -77,29 +84,8 @@ class DatabaseManager:
         self._init_settings()
 
     def _init_settings(self):
-        """Initialize default settings if they don't exist"""
-        if not self.settings_table.all():
-            # Check if xray command is available on the system
-            is_available, xray_path = check_xray_command_available()
-            if is_available and xray_path:
-                # Use system xray command with full path
-                xray_binary = xray_path
-                xray_assets_folder = None
-            else:
-                # Create directory for xray binary and assets
-                xray_data_dir = get_xray_data_directory()
-                xray_data_dir.mkdir(parents=True, exist_ok=True)
-
-                # Set paths for downloaded xray binary and assets
-                xray_binary = str(xray_data_dir / "xray")
-                xray_assets_folder = str(xray_data_dir)
-
-            default_settings = SettingsModel(
-                xray_binary=xray_binary,
-                xray_assets_folder=xray_assets_folder,
-                xray_log_level="warning",  # Default log level
-            )
-            self.settings_table.insert(default_settings.model_dump())
+        """Ensure settings are initialized by delegating to get_settings()."""
+        self.get_settings()
 
     def _serialize_for_db(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Serialize data for database storage"""
@@ -274,8 +260,26 @@ class DatabaseManager:
         """Get current settings"""
         result = self.settings_table.all()
         if result:
-            return SettingsModel(**result[0])
-        return SettingsModel()
+            settings = SettingsModel(**result[0])
+        else:
+            settings = SettingsModel()
+
+        if not settings.xray_binary:
+            is_available, xray_path = check_xray_command_available()
+            if is_available and xray_path:
+                settings.xray_binary = xray_path
+                settings.xray_assets_folder = settings.xray_assets_folder
+            else:
+                xray_data_dir = get_xray_data_directory()
+                xray_data_dir.mkdir(parents=True, exist_ok=True)
+                settings.xray_binary = str(
+                    xray_data_dir / get_default_xray_binary_filename()
+                )
+                settings.xray_assets_folder = str(xray_data_dir)
+
+            self.update_settings(settings)
+
+        return settings
 
     def update_settings(self, settings: SettingsModel) -> SettingsModel:
         """Update settings"""

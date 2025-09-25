@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
 
 
 class ServerStatus(str, Enum):
@@ -74,8 +74,16 @@ class SettingsResponse(BaseModel):
     xray_assets_folder: Optional[str] = Field(
         None, description="Path to xray assets folder"
     )
-    xray_log_level: Optional[str] = Field(
-        "warning",
+
+    class XrayLogLevel(str, Enum):
+        DEBUG = "debug"
+        INFO = "info"
+        WARNING = "warning"
+        ERROR = "error"
+        NONE = "none"
+
+    xray_log_level: Optional[XrayLogLevel] = Field(
+        XrayLogLevel.WARNING,
         description="Xray log level override (debug, info, warning, error, none)",
     )
 
@@ -87,9 +95,37 @@ class SettingsUpdate(BaseModel):
     xray_assets_folder: Optional[str] = Field(
         None, description="Path to xray assets folder"
     )
-    xray_log_level: Optional[str] = Field(
+    xray_log_level: Optional[SettingsResponse.XrayLogLevel] = Field(
         None, description="Xray log level override (debug, info, warning, error, none)"
     )
+
+    @field_validator("socks_port")
+    @classmethod
+    def validate_socks_port(cls, v: Optional[int]) -> Optional[int]:
+        if v is None:
+            return v
+        if not (1 <= v <= 65535):
+            raise ValueError("SOCKS port must be between 1 and 65535")
+        return v
+
+    @field_validator("http_port")
+    @classmethod
+    def validate_http_port(cls, v: Optional[int]) -> Optional[int]:
+        if v is None:
+            return v
+        if not (1 <= v <= 65535):
+            raise ValueError("HTTP port must be between 1 and 65535")
+        return v
+
+    @model_validator(mode="after")
+    def validate_port_conflict(self):
+        if (
+            self.socks_port is not None
+            and self.http_port is not None
+            and self.socks_port == self.http_port
+        ):
+            raise ValueError("SOCKS and HTTP ports cannot be the same")
+        return self
 
 
 class SystemInfo(BaseModel):
@@ -197,7 +233,9 @@ class SettingsUpdateResponse(BaseModel):
     xray_assets_folder: Optional[str] = Field(
         None, description="Updated xray assets folder path"
     )
-    xray_log_level: Optional[str] = Field(None, description="Updated xray log level")
+    xray_log_level: Optional[SettingsResponse.XrayLogLevel] = Field(
+        None, description="Updated xray log level"
+    )
 
 
 # URL Test response models

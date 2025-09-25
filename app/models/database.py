@@ -3,6 +3,7 @@ Database models for TinyDB storage
 """
 
 from datetime import datetime
+from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
@@ -70,8 +71,16 @@ class SettingsModel(BaseModel):
     xray_assets_folder: Optional[str] = Field(
         None, description="Path to xray assets folder"
     )
-    xray_log_level: Optional[str] = Field(
-        "warning",
+
+    class XrayLogLevel(str, Enum):
+        DEBUG = "debug"
+        INFO = "info"
+        WARNING = "warning"
+        ERROR = "error"
+        NONE = "none"
+
+    xray_log_level: Optional[XrayLogLevel] = Field(
+        XrayLogLevel.WARNING,
         description="Xray log level override (debug, info, warning, error, none)",
     )
 
