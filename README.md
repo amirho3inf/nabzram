@@ -1,7 +1,8 @@
-# Nabzram
-
 <div align="center">
   <img src="assets/icon.png" alt="Nabzram" width="128"/>
+  
+# Nabzram
+
 </div>
 
 <div align="center">
