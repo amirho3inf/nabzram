@@ -156,7 +156,7 @@ const App: React.FC = () => {
             <ToastContainer />
             
             {/* Fixed, Draggable Title Bar */}
-            <div className="h-12 flex-shrink-0 flex justify-between items-center px-4 draggable border-b border-border">
+            <div className="pywebview-drag-region h-12 flex-shrink-0 flex justify-between items-center px-4 border-b border-border">
                 <div className="flex items-center space-x-3">
                     <NabzramIcon className="h-7 w-7" />
                     <h1 className="text-xl font-bold tracking-wider text-foreground">Nabzram</h1>
@@ -164,21 +164,21 @@ const App: React.FC = () => {
                 <div className="flex items-center space-x-2">
                     <button 
                         onClick={() => setIsSettingsModalOpen(true)} 
-                        className="p-2 text-muted-foreground hover:text-foreground rounded-full transition-colors non-draggable"
+                        className="p-2 text-muted-foreground hover:text-foreground rounded-full transition-colors"
                         aria-label="Open settings"
                     >
                         <CogIcon className="h-5 w-5" />
                     </button>
                     <button
                         onClick={handleMinimize}
-                        className="p-2 text-muted-foreground hover:text-foreground rounded-full transition-colors non-draggable"
+                        className="p-2 text-muted-foreground hover:text-foreground rounded-full transition-colors"
                         aria-label="Minimize application"
                     >
                         <MinimizeIcon className="h-5 w-5" />
                     </button>
                     <button
                         onClick={handleClose}
-                        className="p-2 text-muted-foreground hover:text-destructive rounded-full transition-colors non-draggable"
+                        className="p-2 text-muted-foreground hover:text-destructive rounded-full transition-colors"
                         aria-label="Close application"
                     >
                         <XIcon className="h-5 w-5" />

@@ -126,7 +126,7 @@ def create_main_window(url: str):
         min_size=(500, 900),
         resizable=True,
         frameless=True,
-        easy_drag=True,
+        easy_drag=False,
         background_color="#020817",
     )
 
