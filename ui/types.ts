@@ -101,11 +101,15 @@ export interface SystemInfo {
   arch: string | null;
 }
 
+export interface XrayAssetInfo {
+    version: string;
+    size_bytes: number | null;
+}
+
 export interface XrayVersionInfo {
     current_version: string | null;
     latest_version: string;
-    available_versions: string[];
-    architecture: string;
+    available_versions: XrayAssetInfo[];
 }
 
 export interface XrayUpdateRequest {

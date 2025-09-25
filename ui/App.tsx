@@ -10,6 +10,7 @@ import UpdateModal from './components/UpdateModal';
 import { CogIcon, NabzramIcon, MinimizeIcon, XIcon } from './components/icons';
 import ToastContainer from './components/ToastContainer';
 import { useToast } from './contexts/ToastContext';
+import InstallationRequired from './components/InstallationRequired';
 
 declare global {
     interface Window {
@@ -72,6 +73,11 @@ const App: React.FC = () => {
     const onAddSubscriptionSuccess = () => {
         addToast('Subscription added successfully!', 'success');
         setIsAddModalOpen(false);
+        fetchData();
+    };
+    
+    const onInstallSuccess = () => {
+        addToast('Xray installed successfully!', 'success');
         fetchData();
     };
 
@@ -150,6 +156,46 @@ const App: React.FC = () => {
             console.warn('pywebview API not available to close window.');
         }
     };
+    
+    const renderContent = () => {
+        if (isLoading) {
+            return (
+                <div className="flex-1 flex justify-center items-center">
+                    <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-primary"></div>
+                </div>
+            );
+        }
+
+        if (xrayStatus && !xrayStatus.available) {
+            return <InstallationRequired onInstallSuccess={onInstallSuccess} />;
+        }
+
+        return (
+            <div className="flex-1 overflow-y-auto">
+                <main>
+                    <div className="container mx-auto max-w-lg px-4 pt-6 pb-4">
+                        <StatusIndicator 
+                            status={currentStatus}
+                            xrayStatus={xrayStatus}
+                            isConnecting={isConnecting}
+                            onConnect={handleAutoConnect}
+                            onStop={handleStopServer} 
+                            onOpenLogs={() => setIsLogsModalOpen(true)}
+                            onOpenUpdates={() => setIsUpdateModalOpen(true)}
+                        />
+                        
+                        <SubscriptionList
+                            subscriptions={subscriptions}
+                            onAdd={() => setIsAddModalOpen(true)}
+                            refreshList={fetchData}
+                            currentStatus={currentStatus}
+                            onConnect={fetchStatus}
+                        />
+                    </div>
+                </main>
+            </div>
+        );
+    };
 
     return (
         <div className="bg-background text-foreground h-screen flex flex-col font-sans">
@@ -186,39 +232,7 @@ const App: React.FC = () => {
                 </div>
             </div>
             
-            {/* Scrollable Container */}
-            <div className="flex-1 overflow-y-auto">
-                <main>
-                    <div className="container mx-auto max-w-lg px-4 pt-6 pb-4">
-                        <StatusIndicator 
-                            status={currentStatus}
-                            xrayStatus={xrayStatus}
-                            isConnecting={isConnecting}
-                            onConnect={handleAutoConnect}
-                            onStop={handleStopServer} 
-                            onOpenLogs={() => setIsLogsModalOpen(true)}
-                            onOpenUpdates={() => setIsUpdateModalOpen(true)}
-                        />
-                        
-                        {isLoading && subscriptions.length === 0 && (
-                            <div className="flex justify-center items-center h-64">
-                                <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-primary"></div>
-                            </div>
-                        )}
-
-                        {!isLoading && (
-                            <SubscriptionList
-                                subscriptions={subscriptions}
-                                onAdd={() => setIsAddModalOpen(true)}
-                                refreshList={fetchData}
-                                currentStatus={currentStatus}
-                                onConnect={fetchStatus}
-                            />
-                        )}
-                    </div>
-                </main>
-            </div>
-
+            {renderContent()}
 
             {/* Modals */}
             {isAddModalOpen && (

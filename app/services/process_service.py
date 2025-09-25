@@ -62,7 +62,8 @@ class ProcessManager:
         except Exception as e:
             logger.warning(f"Failed to get xray_binary from database settings: {e}")
 
-        xray_path = which("xray")
+        # Try both "xray" and "xray.exe" for better Windows compatibility
+        xray_path = which("xray") or which("xray.exe")
         if xray_path:
             return xray_path
 
@@ -92,11 +93,20 @@ class ProcessManager:
         try:
             # Try to run xray version command
             xray_binary = self.get_effective_xray_binary()
+
+            # On Windows, hide the console window
+            creationflags = 0
+            if platform.system() == "Windows":
+                import subprocess
+
+                creationflags = subprocess.CREATE_NO_WINDOW
+
             process = await asyncio.create_subprocess_exec(
                 xray_binary,
                 "version",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                creationflags=creationflags,
             )
 
             stdout, stderr = await process.communicate()
@@ -288,6 +298,13 @@ class ProcessManager:
                 )
 
             # Create async subprocess
+            # On Windows, hide the console window
+            creationflags = 0
+            if platform.system() == "Windows":
+                import subprocess
+
+                creationflags = subprocess.CREATE_NO_WINDOW
+
             process = await asyncio.create_subprocess_exec(
                 xray_binary,
                 "run",
@@ -298,6 +315,7 @@ class ProcessManager:
                 stderr=asyncio.subprocess.STDOUT,
                 limit=1024 * 1024,  # 1MB buffer limit
                 env=env,
+                creationflags=creationflags,
             )
 
             # Send config via stdin

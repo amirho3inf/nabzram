@@ -30,9 +30,12 @@ def check_xray_command_available() -> tuple[bool, str | None]:
         xray_path = shutil.which("xray")
         if xray_path:
             # Try to run xray --version to verify it's actually xray-core
-            result = subprocess.run(
-                ["xray", "--version"], capture_output=True, text=True, timeout=5
-            )
+            # On Windows, hide the console window
+            kwargs = {"capture_output": True, "text": True, "timeout": 5}
+            if platform.system() == "Windows":
+                kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+
+            result = subprocess.run(["xray", "--version"], **kwargs)
             # Check if the output contains xray-core information
             is_xray_core = (
                 "xray-core" in result.stdout.lower() or "xray" in result.stdout.lower()

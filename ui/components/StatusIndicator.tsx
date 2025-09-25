@@ -16,7 +16,6 @@ const StatusIndicator: React.FC<StatusIndicatorProps> = ({ status, xrayStatus, i
     const [duration, setDuration] = useState('');
     const [isFreshlyConnected, setIsFreshlyConnected] = useState(false);
     const isConnected = status?.status === ServerStatus.RUNNING;
-    const isXrayAvailable = xrayStatus?.available === true;
     const prevIsConnected = useRef(isConnected);
 
     useEffect(() => {
@@ -67,7 +66,6 @@ const StatusIndicator: React.FC<StatusIndicatorProps> = ({ status, xrayStatus, i
     }, [isConnected, status?.start_time]);
     
     const getStatusText = () => {
-        if (!isXrayAvailable) return 'Xray Not Found';
         if (isConnecting) return 'Connecting...';
         if (!status) return 'Checking Status...';
         switch (status.status) {
@@ -78,10 +76,15 @@ const StatusIndicator: React.FC<StatusIndicatorProps> = ({ status, xrayStatus, i
         }
     };
 
-    const getButtonStateClasses = () => {
-        if (!isXrayAvailable) {
-            return 'bg-destructive/10 text-destructive cursor-not-allowed';
+    const handleMainButtonClick = () => {
+        if (isConnected) {
+            onStop();
+        } else {
+            onConnect();
         }
+    };
+
+    const getButtonStateClasses = () => {
         if (isConnecting) {
             return 'bg-muted text-foreground animate-pulse cursor-wait';
         }
@@ -92,24 +95,27 @@ const StatusIndicator: React.FC<StatusIndicatorProps> = ({ status, xrayStatus, i
         return 'bg-secondary text-secondary-foreground shadow-md hover:bg-secondary/80';
     }
 
+    const getButtonContent = () => {
+        if (isConnecting) {
+            return <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>;
+        }
+        return <PowerIcon className="h-12 w-12" />;
+    };
+
     return (
         <div className="bg-card border border-border rounded-xl p-4 md:p-5 shadow-sm mb-8 flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0 sm:space-x-6">
             <div className="flex-shrink-0">
                 <button
-                    onClick={isConnected ? onStop : onConnect}
-                    disabled={isConnecting || !isXrayAvailable}
-                    className={`h-24 w-24 rounded-full flex items-center justify-center transition-all duration-300 transform hover:scale-105 ${getButtonStateClasses()}`}
+                    onClick={handleMainButtonClick}
+                    disabled={isConnecting}
+                    className={`h-24 w-24 rounded-full flex items-center justify-center transition-all duration-300 ${getButtonStateClasses()}`}
                     aria-label={isConnected ? 'Disconnect' : 'Connect'}
                 >
-                    {isConnecting ? (
-                        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
-                    ) : (
-                        <PowerIcon className="h-12 w-12" />
-                    )}
+                    {getButtonContent()}
                 </button>
             </div>
             <div className="flex-1 w-full text-center sm:text-left flex flex-col items-center sm:items-start">
-                <h2 className={`text-2xl font-bold ${!isXrayAvailable ? 'text-destructive' : 'text-foreground'}`}>
+                <h2 className={`text-2xl font-bold text-foreground`}>
                     {getStatusText()}
                 </h2>
                 
@@ -140,13 +146,11 @@ const StatusIndicator: React.FC<StatusIndicatorProps> = ({ status, xrayStatus, i
                         {xrayStatus && (
                             <div
                                 onClick={onOpenUpdates}
-                                className={`mt-1 flex items-center space-x-1.5 px-2.5 py-1 rounded-full transition-colors cursor-pointer hover:opacity-80 ${
-                                    isXrayAvailable ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'
-                                }`}
+                                className="mt-1 flex items-center space-x-1.5 px-2.5 py-1 rounded-full transition-colors cursor-pointer bg-success/10 text-success hover:opacity-80"
                             >
-                                <span className={`h-2 w-2 rounded-full ${isXrayAvailable ? 'bg-success' : 'bg-destructive'}`}></span>
+                                <span className="h-2 w-2 rounded-full bg-success"></span>
                                 <span className="text-xs font-mono">
-                                    {isXrayAvailable ? `Xray ${xrayStatus.version}` : 'Xray Not Found'}
+                                    Xray {xrayStatus.version}
                                 </span>
                             </div>
                         )}
@@ -154,18 +158,16 @@ const StatusIndicator: React.FC<StatusIndicatorProps> = ({ status, xrayStatus, i
                 ) : (
                     <>
                         <p className="text-muted-foreground text-sm mt-1 h-5">
-                            {isXrayAvailable && !isConnecting && <span>Click the power button to auto-connect</span>}
+                            {isConnecting ? '' : <span>Click the power button to auto-connect</span>}
                         </p>
                         {xrayStatus && (
                             <div
                                 onClick={onOpenUpdates}
-                                className={`mt-3 flex items-center space-x-1.5 px-2.5 py-1 rounded-full transition-colors cursor-pointer hover:opacity-80 ${
-                                    isXrayAvailable ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'
-                                }`}
+                                className="mt-3 flex items-center space-x-1.5 px-2.5 py-1 rounded-full transition-colors cursor-pointer bg-success/10 text-success hover:opacity-80"
                             >
-                                <span className={`h-2 w-2 rounded-full ${isXrayAvailable ? 'bg-success' : 'bg-destructive'}`}></span>
+                                <span className="h-2 w-2 rounded-full bg-success"></span>
                                 <span className="text-xs font-mono">
-                                    {isXrayAvailable ? `Xray ${xrayStatus.version}` : 'Xray Not Found'}
+                                    Xray {xrayStatus.version}
                                 </span>
                             </div>
                         )}

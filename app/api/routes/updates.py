@@ -83,14 +83,20 @@ async def get_xray_version_info(
         xray_info = await process_manager.check_xray_availability()
         current_version = xray_info.get("version")
         latest_version = await service.get_latest_version()
-        available_versions = await service.get_available_versions(limit=20)
-        architecture = service._get_system_architecture()
+
+        # Get available versions with sizes in a single API call
+        version_sizes = await service.get_available_versions_with_sizes(limit=10)
+        available_versions = list(version_sizes.keys())
+
+        version_items = [
+            {"version": ver, "size_bytes": version_sizes.get(ver)}
+            for ver in available_versions
+        ]
 
         return XrayVersionInfo(
             current_version=current_version,
             latest_version=latest_version,
-            available_versions=available_versions,
-            architecture=architecture,
+            available_versions=version_items,
         )
 
     except Exception as e:

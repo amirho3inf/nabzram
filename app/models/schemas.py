@@ -263,13 +263,21 @@ class SubscriptionUrlTestResponse(BaseModel):
 
 
 # Xray update schemas
+class XrayAssetInfo(BaseModel):
+    version: str = Field(..., description="Version tag (e.g., v1.8.10)")
+    size_bytes: Optional[int] = Field(
+        None, description="Asset size in bytes for current OS/arch"
+    )
+
+
 class XrayVersionInfo(BaseModel):
     current_version: Optional[str] = Field(
         None, description="Currently installed Xray version"
     )
     latest_version: str = Field(..., description="Latest available Xray version")
-    available_versions: List[str] = Field(..., description="List of available versions")
-    architecture: str = Field(..., description="System architecture")
+    available_versions: List[XrayAssetInfo] = Field(
+        ..., description="List of available versions with asset sizes"
+    )
 
 
 class XrayUpdateRequest(BaseModel):

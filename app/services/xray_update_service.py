@@ -28,36 +28,77 @@ class XrayUpdateService:
         self.timeout = 30.0
 
     def _get_system_architecture(self) -> str:
-        """Get the system architecture for Xray binary download"""
+        """Map platform.machine to Xray release arch suffix."""
         machine = platform.machine().lower()
 
-        arch_map = {
-            "x86_64": "64",
-            "amd64": "64",
-            "i386": "32",
-            "i686": "32",
-            "armv5tel": "arm32-v5",
-            "armv6l": "arm32-v6",
-            "armv7": "arm32-v7a",
-            "armv7l": "arm32-v7a",
-            "armv8": "arm64-v8a",
-            "aarch64": "arm64-v8a",
-            "mips": "mips32",
-            "mipsle": "mips32le",
-            "mips64": "mips64",
-            "mips64le": "mips64le",
-            "ppc64": "ppc64",
-            "ppc64le": "ppc64le",
-            "riscv64": "riscv64",
-            "s390x": "s390x",
-        }
+        # Normalize common variants
+        if machine in {"x86_64", "amd64"}:
+            return "64"
+        if machine in {"i386", "i686"}:
+            return "32"
+        if machine in {"armv5", "armv5tel"}:
+            return "arm32-v5"
+        if machine in {"armv6", "armv6l"}:
+            return "arm32-v6"
+        if machine in {"armv7", "armv7l"}:
+            return "arm32-v7a"
+        if machine in {"armv8", "aarch64", "arm64"}:
+            return "arm64-v8a"
+        if machine in {"mips"}:
+            return "mips32"
+        if machine in {"mipsle"}:
+            return "mips32le"
+        if machine in {"mips64"}:
+            return "mips64"
+        if machine in {"mips64le"}:
+            return "mips64le"
+        if machine in {"ppc64"}:
+            return "ppc64"
+        if machine in {"ppc64le"}:
+            return "ppc64le"
+        if machine in {"riscv64"}:
+            return "riscv64"
+        if machine in {"s390x"}:
+            return "s390x"
+        # Default to 64-bit
+        return "64"
 
-        return arch_map.get(machine, "64")  # Default to 64-bit
+    def _get_os_suffix(self) -> str:
+        """Map platform.system to Xray release OS suffix."""
+        system = platform.system().lower()
+        if system == "darwin":
+            return "macos"
+        if system == "windows":
+            return "windows"
+        if system == "linux":
+            return "linux"
+        if system == "freebsd":
+            return "freebsd"
+        if system == "openbsd":
+            return "openbsd"
+        # Fallback to linux naming
+        return "linux"
+
+    def _build_asset_filename(self) -> str:
+        """Build the exact asset filename for current OS/arch."""
+        os_suffix = self._get_os_suffix()
+        arch_suffix = self._get_system_architecture()
+
+        # Special cases for macOS Intel vs Apple Silicon are covered by arch mapping
+        # Result examples:
+        # - Xray-linux-64.zip
+        # - Xray-windows-64.zip
+        # - Xray-macos-arm64-v8a.zip
+        return f"Xray-{os_suffix}-{arch_suffix}.zip"
+
+    def _get_http_client(self) -> AsyncClient:
+        """Create an AsyncClient with default timeout."""
+        return AsyncClient(timeout=self.timeout)
 
     async def get_latest_version(self) -> str:
         """Get the latest Xray release version"""
         try:
-            async with AsyncClient(timeout=self.timeout) as client:
+            async with self._get_http_client() as client:
                 response = await client.get(
                     f"{self.github_api_base}/releases/latest",
                     headers={"Accept": "application/vnd.github.v3+json"},
@@ -80,7 +121,7 @@ class XrayUpdateService:
     async def get_available_versions(self, limit: int = 10) -> List[str]:
         """Get list of available Xray versions"""
         try:
-            async with AsyncClient(timeout=self.timeout) as client:
+            async with self._get_http_client() as client:
                 response = await client.get(
                     f"{self.github_api_base}/releases",
                     headers={"Accept": "application/vnd.github.v3+json"},
@@ -105,6 +146,45 @@ class XrayUpdateService:
             logger.error(f"Failed to get Xray versions: {e}")
             raise RuntimeError(f"Failed to fetch versions: {str(e)}")
 
+    async def get_available_versions_with_sizes(
+        self, limit: int = 10
+    ) -> Dict[str, int]:
+        """Get available Xray versions with their download sizes"""
+        try:
+            async with self._get_http_client() as client:
+                response = await client.get(
+                    f"{self.github_api_base}/releases",
+                    headers={"Accept": "application/vnd.github.v3+json"},
+                    params={"per_page": limit},
+                )
+                response.raise_for_status()
+
+                data = response.json()
+                filename = self._build_asset_filename()
+                version_sizes = {}
+
+                for release in data:
+                    version = release.get("tag_name", "")
+                    if version:
+                        # Normalize version
+                        if not version.startswith("v"):
+                            version = f"v{version}"
+
+                        # Look for the matching asset in this release
+                        assets = release.get("assets", [])
+                        for asset in assets:
+                            if asset.get("name") == filename:
+                                size = asset.get("size")
+                                if isinstance(size, int):
+                                    version_sizes[version] = size
+                                break
+
+                return version_sizes
+
+        except Exception as e:
+            logger.error(f"Failed to get Xray versions with sizes: {e}")
+            raise RuntimeError(f"Failed to fetch versions with sizes: {str(e)}")
+
     async def download_xray(self, version: str, target_path: str) -> bool:
         """Download and install Xray binary"""
         try:
@@ -112,12 +192,11 @@ class XrayUpdateService:
             if not version.startswith("v"):
                 version = f"v{version}"
 
-            arch = self._get_system_architecture()
-            filename = f"Xray-linux-{arch}.zip"
+            filename = self._build_asset_filename()
             download_url = f"{self.github_releases_base}/{version}/{filename}"
             checksum_url = f"{download_url}.dgst"
 
-            logger.info(f"Downloading Xray {version} for {arch} architecture")
+            logger.info(f"Downloading Xray {version} asset {filename}")
 
             # Create temporary directory
             with TemporaryDirectory() as temp_dir:
@@ -126,7 +205,7 @@ class XrayUpdateService:
                 checksum_file = temp_path / f"{filename}.dgst"
 
                 # Download files
-                async with AsyncClient(timeout=60.0) as client:
+                async with self._get_http_client() as client:
                     # Download zip file
                     logger.info(f"Downloading from: {download_url}")
                     response = await client.get(download_url, follow_redirects=True)
@@ -207,11 +286,14 @@ class XrayUpdateService:
             with ZipFile(zip_file, "r") as zip_ref:
                 # Look for xray binary in the zip
                 xray_found = False
+                # Find binary inside the archive (Windows uses xray.exe)
+                binary_candidates = {"xray", "xray.exe"}
                 for file_info in zip_ref.filelist:
-                    if file_info.filename == "xray":
+                    basename = os.path.basename(file_info.filename)
+                    if basename in binary_candidates:
                         # Extract xray binary to temporary location
                         with NamedTemporaryFile(delete=False) as temp_binary:
-                            temp_binary.write(zip_ref.read("xray"))
+                            temp_binary.write(zip_ref.read(file_info.filename))
                             temp_binary_path = temp_binary.name
                         # Make it executable and move to target location
                         os.chmod(temp_binary_path, 0o755)

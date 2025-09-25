@@ -5,6 +5,7 @@ import { XrayVersionInfo } from '../types';
 import { useToast } from '../contexts/ToastContext';
 import { ArrowDownCircleIcon, CloudDownloadIcon } from './icons';
 import CustomSelect, { SelectOption } from './CustomSelect';
+import { formatBytes } from './utils';
 
 interface UpdateModalProps {
     onClose: () => void;
@@ -18,6 +19,7 @@ const UpdateModal: React.FC<UpdateModalProps> = ({ onClose, onUpdateSuccess }) =
     const [isUpdatingGeodata, setIsUpdatingGeodata] = useState(false);
     const [selectedVersion, setSelectedVersion] = useState('latest');
     const [customVersion, setCustomVersion] = useState('');
+    const [selectedAssetSize, setSelectedAssetSize] = useState<number | null>(null);
     const { addToast } = useToast();
 
     const fetchVersionInfo = useCallback(async () => {
@@ -37,6 +39,24 @@ const UpdateModal: React.FC<UpdateModalProps> = ({ onClose, onUpdateSuccess }) =
         fetchVersionInfo();
     }, [fetchVersionInfo]);
 
+    useEffect(() => {
+        if (!info) return;
+
+        let size: number | null = null;
+        if (selectedVersion === 'latest') {
+            const latestAsset = info.available_versions.find(a => a.version === info.latest_version);
+            if (latestAsset) {
+                size = latestAsset.size_bytes;
+            }
+        } else if (selectedVersion !== 'custom') {
+            const selectedAsset = info.available_versions.find(a => a.version === selectedVersion);
+            if (selectedAsset) {
+                size = selectedAsset.size_bytes;
+            }
+        }
+        setSelectedAssetSize(size);
+    }, [selectedVersion, info]);
+
     const handleUpdate = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsUpdating(true);
@@ -49,7 +69,7 @@ const UpdateModal: React.FC<UpdateModalProps> = ({ onClose, onUpdateSuccess }) =
             addToast(response.message, 'success');
             onUpdateSuccess();
         } catch(err) {
-            const message = err instanceof Error ? err.message : 'Failed to update Xray';
+            const message = err instanceof Error ? err.message : `Failed to update Xray`;
             addToast(message, 'error');
         } finally {
             setIsUpdating(false);
@@ -97,13 +117,15 @@ const UpdateModal: React.FC<UpdateModalProps> = ({ onClose, onUpdateSuccess }) =
         
         const versionOptions: SelectOption[] = [
             { value: 'latest', label: `Latest (${info.latest_version})` },
-            ...info.available_versions.map(v => ({ value: v, label: v })),
+            ...info.available_versions.map(asset => ({ value: asset.version, label: `${asset.version}${asset.size_bytes != null ? ` (${formatBytes(asset.size_bytes)})` : ''}` })),
             { value: 'custom', label: 'Custom...' }
         ];
 
+        const buttonText = `Update Binary${selectedAssetSize != null ? ` (${formatBytes(selectedAssetSize)})` : ''}`;
+        
         return (
             <div className="space-y-6">
-                <form onSubmit={handleUpdate} className="space-y-6">
+                 <form onSubmit={handleUpdate} className="space-y-6">
                     <div>
                         <h3 className="text-md font-semibold text-foreground mb-3">Xray-core Binary</h3>
                         <div className="space-y-2 text-sm">
@@ -115,15 +137,11 @@ const UpdateModal: React.FC<UpdateModalProps> = ({ onClose, onUpdateSuccess }) =
                                 <span className="text-muted-foreground">Latest Version:</span>
                                 <span className="font-mono text-success">{info.latest_version}</span>
                             </div>
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">Architecture:</span>
-                                <span className="font-mono text-foreground">{info.architecture}</span>
-                            </div>
                         </div>
                     </div>
 
                     <div>
-                        <label htmlFor="version-select" className="block text-sm font-medium text-muted-foreground mb-1">Select Version to Install</label>
+                        <label htmlFor="version-select" className="block text-sm font-medium text-muted-foreground mb-1">Select Version to Update</label>
                         <CustomSelect
                             value={selectedVersion}
                             onChange={handleVersionSelect}
@@ -161,7 +179,7 @@ const UpdateModal: React.FC<UpdateModalProps> = ({ onClose, onUpdateSuccess }) =
                             ) : (
                                 <>
                                     <ArrowDownCircleIcon className="h-5 w-5" />
-                                    <span>Update Binary</span>
+                                    <span>{buttonText}</span>
                                 </>
                             )}
                         </button>
@@ -169,14 +187,13 @@ const UpdateModal: React.FC<UpdateModalProps> = ({ onClose, onUpdateSuccess }) =
                 </form>
 
                 <hr className="border-border" />
-
                 <div>
                     <h3 className="text-md font-semibold text-foreground mb-2">Geodata Files</h3>
-                     <p className="text-xs text-muted-foreground/80 mb-4">
+                    <p className="text-xs text-muted-foreground/80 mb-4">
                         Keep your `geoip.dat` and `geosite.dat` files up-to-date for accurate routing.
                     </p>
                     <div className="flex justify-end">
-                         <button 
+                        <button 
                             onClick={handleUpdateGeodata}
                             disabled={isUpdating || isUpdatingGeodata}
                             className="bg-secondary text-secondary-foreground font-bold py-2 px-4 rounded-md hover:bg-secondary/80 disabled:bg-secondary/50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
@@ -195,7 +212,6 @@ const UpdateModal: React.FC<UpdateModalProps> = ({ onClose, onUpdateSuccess }) =
                         </button>
                     </div>
                 </div>
-
             </div>
         );
     };
