@@ -7,13 +7,13 @@
 
 <div align="center">
 
-*A Marzban subscription tool born out of pure boredom and built with whatever tech stack was lying around* 🤷🏻‍♂️
+*A Marzban client tool for connecting to Marzban subscriptions, born out of pure boredom and built with whatever tech stack was lying around* 🤷🏻‍♂️
 
 </div>
 
-> **Fun Fact**: This entire project, including the logo, components, app architecture, and even this README you're reading right now, was crafted by AI. I was bored one day, had some VPN subscriptions to manage, and thought "why not?" So here we are - a desktop app that probably does more than it needs to, but hey, it works! 😮‍💨
+> This entire project, including the logo, components, app architecture, and even this README you're reading right now, was crafted by AI. Well, except the name "Nabzram" - that was my brilliant idea! 😮‍💨 I was bored one day, had some subscriptions to use, and thought "why not?" So here we are - a desktop app that actually does exactly what it needs to do, and it works! 😎
 
-A cool GUI application for adding and connecting to **Marzban subscription servers**. Built with Python FastAPI backend and React frontend, wrapped in a native desktop application using pywebview.
+A cool GUI application for adding and connecting to **Marzban subscription servers**. Built with Python, React, wrapped in a native desktop application using pywebview.
 
 > **Important**: This app is made specifically for Marzban subscriptions. It runs Xray-core and exposes SOCKS/HTTP proxies to your system - **no TUN interface or system-wide proxy configuration** (for now).
 
