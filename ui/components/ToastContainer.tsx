@@ -28,7 +28,7 @@ const ToastContainer: React.FC = () => {
                  <div
                     key={toast.id}
                     onClick={() => removeToast(toast.id)}
-                    className={`w-full max-w-sm flex items-start space-x-4 p-4 border rounded-lg shadow-lg bg-opacity-80 backdrop-blur-sm transition-all duration-300 animate-fade-in-up cursor-pointer ${TOAST_STYLES[toast.type]}`}
+                    className={`w-full max-w-sm flex items-start space-x-4 p-4 border rounded-lg shadow-lg bg-opacity-80 backdrop-blur-sm transition-all duration-200 animate-fade-in-up cursor-pointer ${TOAST_STYLES[toast.type]}`}
                     role="alert"
                 >
                     <div className="flex-shrink-0">{ICONS[toast.type]}</div>

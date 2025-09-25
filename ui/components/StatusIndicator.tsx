@@ -108,7 +108,7 @@ const StatusIndicator: React.FC<StatusIndicatorProps> = ({ status, xrayStatus, i
                 <button
                     onClick={handleMainButtonClick}
                     disabled={isConnecting}
-                    className={`h-24 w-24 rounded-full flex items-center justify-center transition-all duration-300 ${getButtonStateClasses()}`}
+                    className={`h-24 w-24 rounded-full flex items-center justify-center transition-all duration-200 ${getButtonStateClasses()}`}
                     aria-label={isConnected ? 'Disconnect' : 'Connect'}
                 >
                     {getButtonContent()}

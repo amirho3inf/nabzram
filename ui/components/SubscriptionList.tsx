@@ -271,7 +271,7 @@ const SubscriptionItem: React.FC<SubscriptionItemProps> = ({ subscription, refre
     
     return (
         <>
-            <div className="bg-card rounded-lg mb-3 overflow-hidden transition-all duration-300">
+            <div className="bg-card rounded-lg mb-3 overflow-hidden transition-all duration-200">
                 <div 
                     className="p-4 flex items-center justify-between cursor-pointer hover:bg-accent/20 transition-colors"
                     onClick={handleToggleExpand}
@@ -334,8 +334,8 @@ const SubscriptionItem: React.FC<SubscriptionItemProps> = ({ subscription, refre
                     </div>
                 </div>
 
-                {isExpanded && (
-                    <div className="px-4 pb-2 pt-4 bg-background/50">
+                <div className={`transition-[max-height] duration-200 ease-in-out overflow-hidden ${isExpanded ? 'max-h-[1000px]' : 'max-h-0'}`}>
+                    <div className={`px-4 pb-2 pt-4 bg-background/50 transition-all duration-200 ease-in-out transform ${isExpanded ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
                         {isLoadingServers && (
                             <div className="flex justify-center items-center py-4">
                                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
@@ -358,7 +358,7 @@ const SubscriptionItem: React.FC<SubscriptionItemProps> = ({ subscription, refre
                             </div>
                         )}
                     </div>
-                )}
+                </div>
             </div>
 
             {isEditModalOpen && <EditSubscriptionModal 
