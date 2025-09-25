@@ -1,6 +1,14 @@
 # Nabzram
 
-*A Marzban subscription tool born out of pure boredom and built with whatever tech stack was lying around* 🤖
+<div align="center">
+  <img src="assets/icon.png" alt="Nabzram" width="128"/>
+</div>
+
+<div align="center">
+
+*A Marzban subscription tool born out of pure boredom and built with whatever tech stack was lying around* 🤷🏻‍♂️
+
+</div>
 
 > **Fun Fact**: This entire project, including the logo, components, app architecture, and even this README you're reading right now, was crafted by AI. I was bored one day, had some VPN subscriptions to manage, and thought "why not?" So here we are - a desktop app that probably does more than it needs to, but hey, it works! 😮‍💨
 
